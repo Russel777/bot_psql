@@ -1,30 +1,10 @@
-# -*- coding: utf-8 -*-
 # created by Ruslan Nguen 24/09/2018
 
-import config
+from config import *
 import logging
 import psycopg2
 from telegram.ext import CommandHandler, Filters, MessageHandler, Updater
 from typing import AnyStr
-
-# Database consts
-DB_NAME = config.DB_NAME
-HOST = config.HOST
-PASSWORD = config.PASSWORD
-
-# Bot token
-TOKEN = config.TOKEN
-
-# Interval for callback sending informations about tables from DB
-TIME_INTERVAL = 30
-
-# Proxy parameters
-REQUEST_KWARGS = {
-    'proxy_url': config.PROXY_URL
-}
-
-# logging level
-LOG_LEVEL = logging.INFO
 
 
 class DatabaseBot:
@@ -32,7 +12,8 @@ class DatabaseBot:
     DatabaseBot class allowed to create and run Telegram bot which worked with Database
     """
     def __init__(self):
-        logging.basicConfig(level=LOG_LEVEL, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        log_level = logging.INFO
+        logging.basicConfig(level=log_level, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         self.updater = Updater(token=TOKEN, request_kwargs=REQUEST_KWARGS)
         self.job = self.updater.job_queue  # create job for sending tables' sizes info
 
@@ -63,10 +44,11 @@ class DatabaseBot:
             cursor = conn.cursor()
             cursor.execute(query)
             response = cursor.fetchall()
-            return response
-        except Exception as e:
-            logging.ERROR(e)
-            raise
+            conn.close()
+        except Exception:
+            response = 'Problems with database'
+            logging.exception(response)
+        return response
 
     def _get_size_all_tables(self):
         """
@@ -79,7 +61,10 @@ class DatabaseBot:
             FROM pg_catalog.pg_tables WHERE schemaname = 'public'
             ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;"""
         tables_size = self._db_query(query)
-        return tables_size
+        text = ''
+        for row in tables_size:
+            text += '\n' + str(row[0]) + ' | ' + str(row[1])
+        return text
 
     def _get_size_job(self, bot, job):
         """
@@ -115,7 +100,7 @@ class DatabaseBot:
 
     def text_get_query(self, bot, update):
         """
-        Get text query and request to database
+        Get text request to database and send response to bot
 
         :param bot: bot data
         :param update: user's info after update
@@ -125,5 +110,5 @@ class DatabaseBot:
         bot.send_message(chat_id=update.message.chat_id, text=self._db_query(update.message.text))
 
 if __name__ == "__main__":
-    dialog_bot = DatabaseBot()
-    dialog_bot.start()
+    telegram_bot = DatabaseBot()
+    telegram_bot.start()
